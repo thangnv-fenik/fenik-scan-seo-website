@@ -1,4 +1,4 @@
-import { Controller, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ScraperService } from './scraper.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 
@@ -10,5 +10,10 @@ export class ScraperController {
   @UseInterceptors(FileInterceptor('file'))
   uploadCsvFile(@UploadedFile() file: Express.Multer.File) {
     return this.scraperService.processCsvFile(file)
+  }
+
+  @Get('scan')
+  startScanWebsite() {
+    return this.scraperService.processDefaultCsvFile();
   }
 }

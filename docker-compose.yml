@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      dockerfile: Dockerfile
+      context: .
+      # Only will build development stage from our dockerfile
+      target: development
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - .env
+    # Run a command against the development stage of the image
+    command: npm run start:dev --watch
+    ports:
+      - 3122:3000
+  cron-job:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    volumes:
+      - ./data:/usr/src/app/upload
+    restart: no
+volumes:
+  node_modules:

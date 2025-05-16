@@ -4,6 +4,7 @@ import { ScraperController } from './scraper.controller';
 import { MulterModule } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { HttpModule } from '@nestjs/axios';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -13,7 +14,8 @@ import { HttpModule } from '@nestjs/axios';
     HttpModule.register({
       timeout: 10000,
       maxRedirects: 5,
-    })
+    }),
+    ScheduleModule.forRoot()
   ],
   providers: [ScraperService],
   controllers: [ScraperController],

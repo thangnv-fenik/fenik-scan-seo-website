@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { parse } from 'csv-parse/sync';
+import { parse as parseBase } from 'csv-parse';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { Readable } from 'stream';
 
 @Injectable()
 export class ScraperService {
@@ -38,25 +42,9 @@ export class ScraperService {
         columns: true,
         skip_empty_lines: true,
       });
-
-      this.validateCsvHeaders(Object.keys(records[0] || {}));
-
-      const results = await Promise.all(
-        records
-          .filter((record) => record.URL)
-          .map((record) =>
-            this.checkSeoTags(record.URL, {
-              meta: {
-                canonical: record.Canonical,
-                robots: record.robots,
-                title: record.Title,
-              },
-              h1: record.h1,
-            }),
-          ),
-      );
-
+      const results = await this.processSeoTags(records);
       const slackMessage = this.buildSlackMessage(records, results);
+
       await this.sendSlackNotification(slackMessage);
       return results;
     } catch (error) {
@@ -64,6 +52,25 @@ export class ScraperService {
         `Lỗi khi đọc file CSV: ${error.message}`,
       );
       throw new Error(`Lỗi khi đọc file CSV: ${error.message}`);
+    }
+  }
+
+  async processDefaultCsvFile(): Promise<Record<string, any>[]> {
+    try {
+      const defaultFilePath = path.join(
+        process.cwd(),
+        'upload',
+        'Monitoring-every-day.csv',
+      );
+      const records = await this.readCsvFile(defaultFilePath);
+      const results = await this.processSeoTags(records);
+      const slackMessage = this.buildSlackMessage(records, results);
+      await this.sendSlackNotification(slackMessage);
+      return results;
+    } catch (error) {
+      const errorMessage = `Lỗi khi xử lý file CSV: ${error.message}`;
+      await this.sendSlackNotification(errorMessage);
+      throw new Error(errorMessage);
     }
   }
 
@@ -161,7 +168,6 @@ export class ScraperService {
         }
       }
 
-      // Kiểm tra thẻ <h1>
       const h1Contents = $('h1')
         .map((i, el) => $(el).text().trim())
         .get();
@@ -218,5 +224,42 @@ export class ScraperService {
     });
 
     return message;
+  }
+
+  private async readCsvFile(
+    filePath: string,
+  ): Promise<Record<string, unknown>[]> {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    const csvBuffer = await fs.readFile(filePath);
+    const records: Record<string, unknown>[] = [];
+    const parser = Readable.from(csvBuffer).pipe(
+      parseBase({ columns: true, skip_empty_lines: true }),
+    );
+    for await (const record of parser) {
+      records.push(record);
+    }
+    return records;
+  }
+
+  private async processSeoTags(
+    records: Record<string, any>[],
+  ): Promise<Record<string, unknown>[]> {
+    this.validateCsvHeaders(Object.keys(records[0] || {}));
+    const results = await Promise.all(
+      records
+        .filter((record) => record.URL)
+        .map((record) =>
+          this.checkSeoTags(record.URL, {
+            meta: {
+              canonical: record.Canonical,
+              robots: record.robots,
+              title: record.Title,
+            },
+            h1: record.h1,
+          }),
+        ),
+    );
+
+    return results;
   }
 }
